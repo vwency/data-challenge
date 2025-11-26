@@ -38,7 +38,7 @@ class AdvancedEnsembleTrainer:
         self,
         config: TrainingConfig,
         artifacts_dir: Path,
-        feature_registry: FeatureRegistry | None = None,
+        feature_registry: FeatureRegistry,
     ) -> None:
         self._config = config
         self._persistence = ModelPersistence(artifacts_dir)
