@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from clickhouse_connect.driver.client import Client
-
 from feature_store_ml.infrastructure.config import ClickHouseConfig
 
 
 from clickhouse_connect import get_client
+
 
 class ClickHouseFactory:
     def __init__(self, config: ClickHouseConfig) -> None:

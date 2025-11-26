@@ -9,7 +9,7 @@ from feature_store_ml.application.use_cases.materialize_features import (
 )
 from feature_store_ml.application.use_cases.serve_predictions import ServePredictions
 from feature_store_ml.application.use_cases.train_model import TrainModel
-from feature_store_ml.infrastructure.clients.clickhouse import ClickHouseFactory
+from feature_store_ml.domain.factories.clickhouse import ClickHouseFactory
 from feature_store_ml.infrastructure.config import StoreConfig
 from feature_store_ml.infrastructure.datasets.builder import DatasetBuilder
 from feature_store_ml.domain.registry.features import FeatureRegistry

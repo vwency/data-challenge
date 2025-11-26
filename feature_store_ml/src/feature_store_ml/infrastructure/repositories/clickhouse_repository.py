@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from loguru import logger
 
-from feature_store_ml.infrastructure.clients.clickhouse import ClickHouseFactory
+from feature_store_ml.domain.factories.clickhouse import ClickHouseFactory
 
 
 class ClickHouseRepository:
