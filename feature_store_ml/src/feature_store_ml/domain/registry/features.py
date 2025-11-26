@@ -16,10 +16,6 @@ class FeatureRegistry:
         return cls(
             features=(
                 Feature(
-                    "value",
-                    lambda df: df["value"],
-                ),
-                Feature(
                     "value_mean",
                     lambda df: df.groupby("entity_id")["value"].transform("mean"),
                 ),
@@ -45,7 +41,7 @@ class FeatureRegistry:
         )
 
     def compute(self, dataframe: pd.DataFrame) -> pd.DataFrame:
-        result = dataframe[["entity_id", "event_time", "value"]].copy()
+        result = dataframe.copy()
         for feature in self._features:
             result[feature.name] = feature.compute(dataframe)
         return result

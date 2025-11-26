@@ -6,7 +6,7 @@ from feature_store_ml.infrastructure.datasets.builder import DatasetBuilder
 from feature_store_ml.infrastructure.repositories.clickhouse_repository import (
     ClickHouseRepository,
 )
-from feature_store_ml.infrastructure.modeling.ensemble_trainer import (
+from feature_store_ml.infrastructure.modeling.ensemble.trainer import (
     AdvancedEnsembleTrainer,
 )
 

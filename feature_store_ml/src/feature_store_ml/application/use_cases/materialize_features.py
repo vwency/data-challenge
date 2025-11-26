@@ -6,7 +6,7 @@ import joblib
 import pandas as pd
 from loguru import logger
 
-from feature_store_ml.infrastructure.registry import FeatureRegistry
+from feature_store_ml.domain.registry.features import FeatureRegistry
 from feature_store_ml.infrastructure.repositories.clickhouse_repository import (
     ClickHouseRepository,
 )
@@ -51,7 +51,7 @@ class MaterializeFeatures:
         for key in ["feature_names", "features", "feature_cols", "columns"]:
             if key in self._metadata and self._metadata[key]:
                 logger.info(f"Using feature names from metadata['{key}']")
-                return self._metadata[key]
+                return list(self._metadata[key])
 
         feature_names = [
             name
@@ -66,7 +66,7 @@ class MaterializeFeatures:
             self._load_model()
 
         feature_cols = self._get_feature_names()
-        X = features[feature_cols].fillna(0)
+        X = features[list(feature_cols)].fillna(0)
 
         if hasattr(self._model, "predict_proba"):
             proba = self._model.predict_proba(X)
@@ -74,26 +74,6 @@ class MaterializeFeatures:
             predictions = (prediction_scores >= 0.5).astype(int)
         else:
             raise ValueError(f"Unsupported model type: {type(self._model)}")
-
-        logger.info(
-            f"Prediction scores distribution:\n{pd.Series(prediction_scores).describe()}"
-        )
-        logger.info(
-            f"Prediction labels distribution:\n{pd.Series(predictions).value_counts()}"
-        )
-        logger.info(
-            f"Score stats - Min: {prediction_scores.min():.4f}, "
-            f"Max: {prediction_scores.max():.4f}, "
-            f"Mean: {prediction_scores.mean():.4f}, "
-            f"Median: {pd.Series(prediction_scores).median():.4f}"
-        )
-
-        if (prediction_scores >= 0.5).all():
-            logger.warning(
-                "⚠️ ALL predictions >= 0.5! Model predicting all as artifacts."
-            )
-        if (prediction_scores < 0.5).all():
-            logger.warning("⚠️ ALL predictions < 0.5! Model predicting all as clean.")
 
         features_with_predictions = features.copy()
         features_with_predictions["prediction_label"] = predictions
@@ -139,12 +119,6 @@ class MaterializeFeatures:
             logger.warning("No features left after preprocessing")
             return
 
-        logger.info("Feature statistics before prediction:")
-        for col in required_features:
-            logger.info(
-                f"  {col}: min={features[col].min():.4f}, max={features[col].max():.4f}, mean={features[col].mean():.4f}"
-            )
-
         features_with_predictions = self._predict_artifacts(features)
 
         total_records = len(features_with_predictions)
@@ -154,14 +128,6 @@ class MaterializeFeatures:
         clean_features = features_with_predictions[
             features_with_predictions["prediction_label"] == 0
         ]
-
-        logger.info(f"Total records: {total_records}")
-        logger.info(
-            f"Artifacts detected (label=1): {len(artifact_features)} ({len(artifact_features) / total_records * 100:.2f}%)"
-        )
-        logger.info(
-            f"Clean records (label=0): {len(clean_features)} ({len(clean_features) / total_records * 100:.2f}%)"
-        )
 
         if clean_features.empty:
             logger.warning(
@@ -178,5 +144,6 @@ class MaterializeFeatures:
 
         self._repository.write_features(clean_features_final, table_name=output_table)
         logger.success(
-            f"Materialized {len(clean_features_final)} clean feature rows (out of {total_records}, filtered out {len(artifact_features)} artifacts)"
+            f"Materialized {len(clean_features_final)} clean feature rows "
+            f"(out of {total_records}, filtered out {len(artifact_features)} artifacts)"
         )

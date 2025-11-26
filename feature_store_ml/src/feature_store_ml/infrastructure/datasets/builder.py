@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from feature_store_ml.domain.models.dataset import FeatureDataset
-from feature_store_ml.infrastructure.registry import FeatureRegistry
+from feature_store_ml.domain.registry.features import FeatureRegistry
 
 
 class DatasetBuilder:

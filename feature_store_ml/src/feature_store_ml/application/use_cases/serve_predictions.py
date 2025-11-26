@@ -4,7 +4,7 @@ from datetime import datetime
 import pandas as pd
 from loguru import logger
 
-from feature_store_ml.infrastructure.modeling.ensemble_trainer import (
+from feature_store_ml.infrastructure.modeling.ensemble.trainer import (
     AdvancedEnsembleTrainer,
 )
 from feature_store_ml.infrastructure.repositories.clickhouse_repository import (
