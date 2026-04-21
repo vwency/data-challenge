@@ -1,0 +1,45 @@
+[[tables]]
+name = "dq.events"
+
+[[tables.expectations]]
+type = "completeness"
+column = "value"
+threshold = 0.99
+
+[[tables.expectations]]
+type = "uniqueness"
+column = "event_id"
+threshold = 0.98
+
+[[tables.expectations]]
+type = "range"
+column = "value"
+min = 0
+max = 1000
+
+[[tables.expectations]]
+type = "schema"
+columns = { event_id = "UInt64", value = "Float64", ts = "DateTime" }
+
+[[tables]]
+name = "dq.test2"
+
+[[tables.expectations]]
+type = "completeness"
+column = "field_a"
+threshold = 0.95
+
+[[tables.expectations]]
+type = "uniqueness"
+column = "id"
+threshold = 0.99
+
+[[tables.expectations]]
+type = "range"
+column = "field_a"
+min = 0
+max = 500
+
+[[tables.expectations]]
+type = "schema"
+columns = { id = "UInt64", field_a = "Float64", ts = "DateTime" }

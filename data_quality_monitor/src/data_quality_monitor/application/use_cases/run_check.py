@@ -1,0 +1,109 @@
+from pathlib import Path
+from confluent_kafka.admin import AdminClient, NewTopic
+from loguru import logger
+from data_quality_monitor.infrastructure.adapters.redpanda_producer import RedpandaProducer
+from data_quality_monitor.infrastructure.adapters.redpanda_consumer import RedpandaConsumer
+from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
+from data_quality_monitor.domain.factories.clickhouse import ClickHouseFactory
+from data_quality_monitor.infrastructure.config import RuleConfig, KafkaConfig
+from data_quality_monitor.application.use_cases.process_rules import ProcessRulesUseCase
+from dataclasses import asdict
+from data_quality_monitor.domain.models.kafka.config import RedpandaConsumerConfig
+from data_quality_monitor.domain.models.kafka.config import RedpandaProducerConfig
+from data_quality_monitor.domain.models.kafka.config import KafkaRuntimeConfig
+
+
+class TopicManager:
+    def __init__(self, config: KafkaConfig):
+        self.admin_client = AdminClient({"bootstrap.servers": config.bootstrap_servers})
+        self.partitions = config.topic.partitions
+        self.replication_factor = config.topic.replication_factor
+        self.create_timeout_seconds = config.topic.create_timeout_seconds
+        self.delete_timeout_seconds = config.topic.delete_timeout_seconds
+
+    def create(self, topic_name: str):
+        topic = NewTopic(
+            topic_name,
+            num_partitions=self.partitions,
+            replication_factor=self.replication_factor,
+        )
+        for _, future in self.admin_client.create_topics([topic]).items():
+            future.result(timeout=self.create_timeout_seconds)
+        logger.info(f"Topic created: {topic_name}")
+
+    def delete(self, topic_name: str):
+        for _, future in self.admin_client.delete_topics(
+            [topic_name],
+            operation_timeout=self.delete_timeout_seconds,
+        ).items():
+            future.result()
+        logger.info(f"Topic deleted: {topic_name}")
+
+
+class KafkaService:
+    def __init__(self, config: KafkaConfig, runtime: KafkaRuntimeConfig, producer_profile: str = "high_throughput"):
+        self.config = config
+        self.runtime = runtime
+        self.producer_profile = producer_profile
+        self.topic_manager = TopicManager(config)
+
+    def setup(self):
+        self.topic_manager.create(self.runtime.topic_name)
+
+    def cleanup(self):
+        self.topic_manager.delete(self.runtime.topic_name)
+
+    def producer(self) -> RedpandaProducer:
+        profile_cfg = self.config.producer_profiles[self.producer_profile]
+        producer_config = RedpandaProducerConfig(
+            bootstrap_servers=self.config.bootstrap_servers,
+            topic=self.runtime.topic_name,
+            **asdict(profile_cfg),
+        )
+        return RedpandaProducer(
+            config=producer_config,
+            auto_flush_interval=producer_config.linger_ms,
+        )
+
+    def consume(self, repository: ClickHouseRepository, total_messages: int, consumer_profile_name: str = "low_latency"):
+        profile = self.config.consumer_profiles[consumer_profile_name]
+        consumer_config = RedpandaConsumerConfig(
+            bootstrap_servers=self.config.bootstrap_servers,
+            group_id=self.runtime.group_id,
+            topic=self.runtime.topic_name,
+            **asdict(profile),
+        )
+        consumer = RedpandaConsumer(config=consumer_config)
+        consumer.consume(callback=repository.save_from_message, max_messages=total_messages)
+        consumer.close()
+
+
+class RunProcess:
+    def __init__(self, infra_path: Path, rules_path: Path, consumer_profile: str = "low_latency"):
+        self.config = RuleConfig.load(infra_path, rules_path)
+        self.runtime = KafkaRuntimeConfig.random()
+        self.repository = self._setup_repository()
+        self.kafka_service = KafkaService(self.config.kafka, self.runtime, producer_profile="high_throughput")
+        self.rules_use_case = ProcessRulesUseCase(self.repository)
+        self.consumer_profile_name = consumer_profile
+
+    def _setup_repository(self):
+        factory = ClickHouseFactory(self.config.clickhouse)
+        repo = ClickHouseRepository(factory=factory, rule_config=self.config)
+        repo.ensure_schema_output()
+        return repo
+
+    def execute(self):
+        try:
+            self.kafka_service.setup()
+            producer = self.kafka_service.producer()
+            total_messages = self.rules_use_case.execute(self.config.rules, producer)
+            self.kafka_service.consume(
+                self.repository,
+                total_messages,
+                consumer_profile_name=self.consumer_profile_name,
+            )
+            logger.debug("Pipeline completed successfully")
+        finally:
+            self.kafka_service.cleanup()
+            logger.debug("Cleanup completed")
